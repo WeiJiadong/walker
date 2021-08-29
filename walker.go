@@ -12,8 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"walker/internal/constant"
-	"walker/internal/proto"
+	"github.com/WeiJiadong/walker/internal/constant"
+	"github.com/WeiJiadong/walker/internal/proto"
 )
 
 type http_header map[string]string
