@@ -1,0 +1,14 @@
+syntax = "proto3";
+package proto;
+option go_package="proto";
+
+message TokenInfo {
+    string login_token = 1;
+    string app_token = 2;
+    string user_id = 3;
+}
+
+message Token {
+    TokenInfo token_info = 1;
+    TokenInfo error_code = 2;
+}
