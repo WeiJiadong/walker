@@ -10,4 +10,5 @@ func TestNewWalker(t *testing.T) {
 	if err != nil {
 		log.Fatalln(err)
 	}
-}```
+}
+```
