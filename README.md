@@ -12,3 +12,7 @@ func TestNewWalker(t *testing.T) {
 	}
 }
 ```
+
+# 刷步原理
+![image](https://user-images.githubusercontent.com/10074838/131337300-3adf9626-5786-4ba3-9a26-1688d0ba8fa1.png)
+
