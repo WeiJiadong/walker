@@ -4,14 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
+
+	"github.com/WeiJiadong/walker/internal/base"
 	"github.com/WeiJiadong/walker/internal/constant"
 	"github.com/WeiJiadong/walker/internal/proto"
 )
@@ -70,54 +70,58 @@ func NewWalker(opt ...WalkerOpt) *walker {
 
 // Do 功能执行入口
 func (w *walker) Do() error {
-	token, err := w.getToken()
+	access, err := w.getAccess()
 	if err != nil {
-		log.Fatalln("getToken error:", err)
+		log.Fatalln("getAccess error, err:", err)
+		return err
+	}
+
+	token, err := w.getToken(access)
+	if err != nil {
+		log.Fatalln("getToken error, err:", err)
 		return err
 	}
 
 	if err := w.setStep(token); err != nil {
+		log.Fatalln("setStep error, err:", err)
 		return err
 	}
 
 	return nil
 }
 
-func (w walker) getToken() (*proto.Token, error) {
-	return login(w.opts.uid, w.opts.passwd)
-}
-
-func (w walker) setStep(token *proto.Token) (err error) {
-	return set(*token, w.opts.step)
-}
-
-func login(user, password string) (*proto.Token, error) {
-	token := proto.Token{}
-	_url := "https://api-user.huami.com/registrations/+86" + user + "/tokens"
-
-	data := url.Values{
+func (w *walker) getAccess() (string, error) {
+	u := url.Values{
 		"client_id":    {"HuaMi"},
-		"password":     {password},
+		"password":     {w.opts.passwd},
 		"redirect_uri": {"https://s3-us-west-2.amazonaws.com/hm-registration/successsignin.html"},
 		"token":        {"access"},
 	}
-
-	header := http_header{
-		"Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-		"User-Agent":   "MiFit/4.6.0 (iPhone; iOS 14.0.1; Scale/2.00)",
-	}
-
-	var method http_method = "POST"
-
-	res, err := Curl(_url, strings.NewReader(data.Encode()), method, header)
+	req, err := http.NewRequest("POST", base.GenAccessUrl(w.opts.uid), strings.NewReader(u.Encode()))
 	if err != nil {
-		return nil, errors.New("获取token失败")
+		return "", err
 	}
-	access := res.Location.Query().Get("access")
 
-	_url = "https://account.huami.com/v2/client/login"
-	//登录
-	data = url.Values{
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8")
+	req.Header.Set("User-Agent", "MiFit/4.6.0 (iPhone; iOS 14.0.1; Scale/2.00)")
+
+	cli := http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse /* 不进入重定向 */
+		}}
+	rsp, err := cli.Do(req)
+	if err != nil {
+		return "", err
+	}
+	local, err := rsp.Location()
+	if err != nil {
+		return "", err
+	}
+	return local.Query().Get("access"), nil
+}
+
+func (w *walker) getToken(access string) (*proto.Token, error) {
+	u := url.Values{
 		"app_name":     {"com.xiaomi.hm.health"},
 		"app_version":  {"4.6.0"},
 		"code":         {access},
@@ -127,31 +131,44 @@ func login(user, password string) (*proto.Token, error) {
 		"grant_type":   {"access_token"},
 		"third_name":   {"huami_phone"},
 	}
-	res, err = Curl(_url, strings.NewReader(data.Encode()), method, header)
+	req, err := http.NewRequest("POST", base.GenLoginUrl(), strings.NewReader(u.Encode()))
 	if err != nil {
-		return nil, errors.New("获取登录信息失败")
+		log.Fatalln("NewRequest error, err:", err)
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8")
+	req.Header.Set("User-Agent", "MiFit/4.6.0 (iPhone; iOS 14.0.1; Scale/2.00)")
+	cli := http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse /* 不进入重定向 */
+		}}
+	rsp, err := cli.Do(req)
+	if err != nil {
+		log.Fatalln("http client Do error, err:", err)
+		return nil, err
 	}
 
-	err = json.Unmarshal(res.Result, &token)
+	result, err := ioutil.ReadAll(rsp.Body)
 	if err != nil {
-		return nil, errors.New("登录信息转换map失败")
+		log.Fatalln("ReadAll error, err:", err)
+		return nil, err
 	}
+
+	token := proto.Token{}
+	if err = json.Unmarshal(result, &token); err != nil {
+		log.Fatalln("Unmarshal error, err:", err)
+		return nil, err
+	}
+
 	return &token, nil
 }
 
-//设置步数
-func set(token proto.Token, step string) error {
+func (w *walker) setStep(token *proto.Token) (err error) {
 	data := constant.ReqData
 	data = strings.Replace(data, "__date__", time.Now().Format("2006-01-02"), -1)
-	data = strings.Replace(data, "__ttl__", step, -1)
-	_url := "https://api-mifit-cn.huami.com/v1/data/band_data.json?&t=" + strconv.Itoa(int(time.Now().Unix()))
-	enEscapeUrl, _ := url.QueryUnescape(data)
-	header := http_header{
-		"Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-		"User-Agent":   "MiFit/4.6.0 (iPhone; iOS 14.0.1; Scale/2.00)",
-		"apptoken":     token.TokenInfo.AppToken,
-	}
+	data = strings.Replace(data, "__ttl__", w.opts.step, -1)
 
+	enEscapeUrl, _ := url.QueryUnescape(data)
 	u := url.Values{
 		"userid":              {token.TokenInfo.UserId},
 		"last_sync_data_time": {"1597306380"},
@@ -159,65 +176,39 @@ func set(token proto.Token, step string) error {
 		"last_deviceid":       {"DA932FFFFE8888E8"},
 		"data_json":           {enEscapeUrl},
 	}
-
-	res, err := Curl(_url, strings.NewReader(u.Encode()), header)
-	fmt.Println(string(res.Result))
+	req, err := http.NewRequest("POST", base.GenSetStepUrl(), strings.NewReader(u.Encode()))
 	if err != nil {
+		log.Fatalln("NewRequest error, err:", err)
 		return err
 	}
-	m := map[string]interface{}{}
-	err = json.Unmarshal(res.Result, &m)
-	if err != nil {
-		return err
-	}
-	if m["code"].(float64) != 1 || m["message"].(string) != "success" {
-		return errors.New("响应包解析失败")
-	}
-	return nil
-}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8")
+	req.Header.Set("User-Agent", "MiFit/4.6.0 (iPhone; iOS 14.0.1; Scale/2.00)")
+	req.Header.Set("apptoken", token.GetTokenInfo().GetAppToken())
 
-//封装curl
-func Curl(_url string, data io.Reader, options ...interface{}) (http_result, error) {
-	//options -》 method string,data string,hearder map[string]string
-	result := http_result{}
-	//获取访问方法
-	var method http_method = "POST"
-	//获取头
-	header := http_header{}
-	for _, value := range options {
-		switch value.(type) {
-		case http_header:
-			header = value.(http_header)
-		case http_method:
-			method = value.(http_method)
-		default:
-			break
-		}
-
-	}
-
-	req, _ := http.NewRequest(string(method), _url, data)
-	//设置请求头
-	for key, value := range header {
-		req.Header.Set(key, value)
-	}
-	client := &http.Client{
+	cli := http.Client{
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse /* 不进入重定向 */
-		},
-	}
-
-	resp, err := (client).Do(req)
-
+		}}
+	rsp, err := cli.Do(req)
 	if err != nil {
-		return result, err
+		log.Fatalln("http client Do error, err:", err)
+		return err
 	}
-	defer resp.Body.Close()
 
-	result.Result, err = ioutil.ReadAll(resp.Body)
+	result, err := ioutil.ReadAll(rsp.Body)
 	if err != nil {
-		return result, err
+		log.Fatalln("ReadAll error, err:", err)
+		return err
 	}
-	result.Location, _ = resp.Location()
-	return result, nil
+
+	ssRsp := proto.SetStepRsp{}
+	err = json.Unmarshal(result, &ssRsp)
+	if err != nil {
+		log.Fatalln("Unmarshal error, err:", err)
+		return err
+	}
+	if ssRsp.GetCode() != 1 {
+		return errors.New(fmt.Sprintf("%+v", ssRsp))
+	}
+	return nil
 }

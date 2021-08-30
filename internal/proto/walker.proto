@@ -2,6 +2,8 @@ syntax = "proto3";
 package proto;
 option go_package="proto";
 
+// protoc --plugin=protoc-gen-gogofaster=/root/go/bin/protoc-gen-gogofaster --gogofaster_out=paths=source_relative:. walker.proto
+
 message TokenInfo {
     string login_token = 1;
     string app_token = 2;
@@ -11,4 +13,9 @@ message TokenInfo {
 message Token {
     TokenInfo token_info = 1;
     TokenInfo error_code = 2;
+}
+
+message SetStepRsp {
+    int32 code = 1;
+    string message = 2;
 }
