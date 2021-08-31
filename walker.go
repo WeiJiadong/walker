@@ -16,13 +16,6 @@ import (
 	"github.com/WeiJiadong/walker/internal/proto"
 )
 
-type http_header map[string]string
-type http_method string
-type http_result struct {
-	Result   []byte
-	Location *url.URL
-}
-
 // walker ...
 type walker struct {
 	opts walkerOpts

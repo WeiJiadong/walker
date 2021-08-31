@@ -7,9 +7,9 @@ import (
 
 func TestNewWalker(t *testing.T) {
 	w := NewWalker(
-		WithUid("手机号"),
-		WithPasswd("密码"),
-		WithStep("步数"))
+		WithUid("15338729859"),
+		WithPasswd("u7758258"),
+		WithStep("12851"))
 	err := w.Do()
 	if err != nil {
 		log.Fatalln(err)
