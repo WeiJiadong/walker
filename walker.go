@@ -2,7 +2,6 @@ package walker
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -92,6 +91,7 @@ func (w *walker) getAccess() (string, error) {
 	}
 	req, err := http.NewRequest("POST", base.GenAccessUrl(w.opts.uid), strings.NewReader(u.Encode()))
 	if err != nil {
+		log.Fatalln("NewRequest error, err:", err)
 		return "", err
 	}
 
@@ -104,10 +104,12 @@ func (w *walker) getAccess() (string, error) {
 		}}
 	rsp, err := cli.Do(req)
 	if err != nil {
+		log.Fatalln("Do error, err:", err)
 		return "", err
 	}
 	local, err := rsp.Location()
 	if err != nil {
+		log.Fatalln("Location error, err:", err)
 		return "", err
 	}
 	return local.Query().Get("access"), nil
@@ -201,7 +203,8 @@ func (w *walker) setStep(token *proto.Token) (err error) {
 		return err
 	}
 	if ssRsp.GetCode() != 1 {
-		return errors.New(fmt.Sprintf("%+v", ssRsp))
+		log.Fatalln("GetCode error, err:", ssRsp)
+		return fmt.Errorf("%+v", ssRsp)
 	}
 	return nil
 }
