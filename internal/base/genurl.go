@@ -7,7 +7,7 @@ import (
 
 // GenAccessUrl ...
 func GenAccessUrl(uid string) string {
-	return fmt.Sprintf("https://api-user.huami.com/registrations/+86%s/tokens", uid)
+	return fmt.Sprintf("https://api-user.huami.com/registrations/%s/tokens", uid)
 }
 
 // GenLoginUrl ...

@@ -24,6 +24,7 @@ type walkerOpts struct {
 	uid    string
 	passwd string
 	step   string
+	plat   string
 }
 
 // WalkerOpt walkerOpts helper
@@ -33,6 +34,12 @@ type WalkerOpt func(opts *walkerOpts)
 func WithUid(uid string) WalkerOpt {
 	return func(opts *walkerOpts) {
 		opts.uid = uid
+		opts.plat = "mail"
+		if !strings.Contains(uid, "@") {
+			uid = "+86" + uid
+			opts.plat = "huami_phone"
+		}
+
 	}
 }
 
@@ -68,7 +75,7 @@ func (w *walker) Do() error {
 		return err
 	}
 
-	token, err := w.getToken(access)
+	token, err := w.getToken(access, w.opts.plat)
 	if err != nil {
 		log.Fatalln("getToken error, err:", err)
 		return err
@@ -115,7 +122,7 @@ func (w *walker) getAccess() (string, error) {
 	return local.Query().Get("access"), nil
 }
 
-func (w *walker) getToken(access string) (*proto.Token, error) {
+func (w *walker) getToken(access, plat string) (*proto.Token, error) {
 	u := url.Values{
 		"app_name":     {"com.xiaomi.hm.health"},
 		"app_version":  {"4.6.0"},
@@ -124,7 +131,7 @@ func (w *walker) getToken(access string) (*proto.Token, error) {
 		"device_id":    {"2C8B4939-0CCD-4E94-8CBA-CB8EA6E613A1"},
 		"device_model": {"phone"},
 		"grant_type":   {"access_token"},
-		"third_name":   {"huami_phone"},
+		"third_name":   {plat},
 	}
 	req, err := http.NewRequest("POST", base.GenLoginUrl(), strings.NewReader(u.Encode()))
 	if err != nil {
