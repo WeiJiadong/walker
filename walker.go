@@ -70,13 +70,13 @@ func NewWalker(opt ...WalkerOpt) *walker {
 func (w *walker) Do() error {
 	access, err := w.getAccess()
 	if err != nil {
-		log.Fatalln("getAccess error, err:", err)
+		log.Fatalln("登陆账号或者密码错误, 请使用zepp life（原小米运动）登陆验证下")
 		return err
 	}
 
 	token, err := w.getToken(access)
 	if err != nil {
-		log.Fatalln("getToken error, err:", err)
+		log.Fatalln("登陆账号或者密码错误, 请使用zepp life（原小米运动）登陆验证下")
 		return err
 	}
 
